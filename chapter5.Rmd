@@ -292,7 +292,7 @@ data("milk")
 d <- milk
 d$K <- scale(d$kcal.per.g)
 d$N <- scale(d$neocortex.perc)
-d$M <- scale(d$mass)
+d$M <- scale(log(d$mass))
 
 unique(d$neocortex.perc)
 
@@ -328,3 +328,103 @@ for (i in 1:50)
   lines(Xseq, mu[i,], col=rangi2)
 
 ```
+
+## How doe each of N & M relate to K
+
+```{r}
+mN <- quap(
+  alist(
+    K ~ dnorm(mu, sigma),
+    mu <- a + bN * N,
+    a ~ dnorm(0,0.2),
+    bN ~ dnorm(0,0.5),
+    sigma ~ dexp(1)
+  ), data = dcc
+)
+
+precis(mN)
+
+mM <- quap(
+  alist(
+    K ~ dnorm(mu, sigma),
+    mu <- a+ bM * M,
+    a ~ dnorm(0,0.2),
+    bM ~ dnorm(0,0.5),
+    sigma ~ dexp(1)
+  ), data = dcc
+)
+
+precis(mM)
+
+mNM <- quap(
+  alist(
+    K ~ dnorm(mu, sigma),
+    mu <- a + bN*N + bM*M,
+    a ~ dnorm(0,0.2),
+    bN ~ dnorm(0,0.5),
+    bM ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ), data = dcc
+)
+
+precis(mNM)
+
+```
+
+```{r}
+
+n_seq <- seq(-2,2, length.out = 100)
+mu_N <- link(mN, data = data.frame(N=n_seq))
+mu_N_mean <- apply(mu_N, 2, mean)
+mu_N_PI <- apply(mu_N,2, PI)
+
+
+# Counterfactual plot
+cf_data <- data.frame(N=n_seq, M=0)
+mu_CF_M0 <- link(mNM, data = cf_data)
+mu_CF_M0_mean <- apply(mu_CF_M0, 2, mean)
+mu_CF_M0_PI <- apply(mu_CF_M0, 2, PI)
+
+par(mfrow=c(1,2))
+plot(K ~ N, data=dcc, col=rangi2,
+     xlab='neocortex percent (std)',
+     ylab='kilocal per gram (std)')
+lines(n_seq, mu_N_mean)
+shade(mu_N_PI, n_seq)
+
+plot(NULL, xlab='neocortex percent (std)', ylab='kilocal per gram (std)',
+     xlim=range(n_seq), ylim=c(-1,2))
+lines(n_seq, mu_CF_M0_mean)
+shade(mu_CF_M0_PI, n_seq)
+
+```
+
+```{r}
+
+m_seq <- seq(-2,2, length.out = 100)
+mu_M <- link(mM, data = data.frame(M=m_seq))
+mu_M_mean <- apply(mu_M, 2, mean)
+mu_M_PI <- apply(mu_M,2, PI)
+
+
+# Counterfactual plot
+cf_data <- data.frame(M=m_seq, N=0)
+mu_CF_N0 <- link(mNM, data = cf_data)
+mu_CF_N0_mean <- apply(mu_CF_N0, 2, mean)
+mu_CF_N0_PI <- apply(mu_CF_N0, 2, PI)
+
+par(mfrow=c(1,2))
+plot(K ~ M, data=dcc, col=rangi2,
+     xlab='log body mass (std)',
+     ylab='kilocal per gram (std)')
+lines(m_seq, mu_M_mean)
+shade(mu_M_PI, m_seq)
+
+plot(NULL, xlab='log body mass (std)', ylab='kilocal per gram (std)',
+     xlim=range(m_seq), ylim=c(-1,2))
+lines(m_seq, mu_CF_N0_mean)
+shade(mu_CF_N0_PI, m_seq)
+
+
+```
+
