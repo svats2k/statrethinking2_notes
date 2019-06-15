@@ -1,0 +1,171 @@
+# Multi-collinearity
+
+This indictes that there is a very strong relationship between 2 or more variables.
+
+## Building the dataset
+```{r}
+
+library(rethinking)
+
+N <- 100 # NUmber of individuals
+set.seed(909)
+height <- rnorm(n = N, mean = 10, sd = 2)
+leg_prop <- runif(n = N, min = 0.4, max = 0.5)
+
+leg_left <- leg_prop*height + rnorm(n = N, mean = 0, sd = 0.02)  # Adding an error term
+leg_right <- leg_prop*height + rnorm(n = N, mean = 0, sd = 0.02)  
+
+d <- data.frame(height, leg_left, leg_right)
+str(d)
+
+```
+
+## Simple model
+
+```{r}
+
+mMC <- quap(
+  alist(
+    height ~ dnorm(mu, sigma),
+    mu <- a + bl*leg_left + br*leg_right,
+    a ~ dnorm(10,100),
+    bl ~ dnorm(2,10),
+    br ~ dnorm(2,10),
+    sigma ~ dexp(1)
+  ), data = d
+)
+
+precis(mMC)
+
+```
+
+The question we are asking the model is what is value of know leg_left when we already know leg_right and vice-versa and the model is answering this question correctly.
+
+
+```{r}
+
+post <- extract.samples(mMC)
+
+par(mfrow=c(1,2))
+plot(bl~br, data=post, col=rangi2)
+dens(post$bl+post$br, col=rangi2, xlab='sum of bl and br')
+
+```
+Given the multicollinearity issue the model had given the right answer for the sum of the two coefficients.
+
+## Consider only one leg
+
+```{r}
+
+mOL <- quap(
+  alist(
+    height ~ dnorm(mu, sigma),
+    mu <- a + bl*leg_left,
+    a ~ dnorm(0,0.5),
+    bl ~ dnorm(0,0.5),
+    sigma ~ dexp(1)
+  ), data = d
+)
+precis(mOL)
+
+```
+
+## Solving the milk problem
+
+### Creating the dataset
+```{r}
+
+data("milk")
+data("milk")
+d <- milk
+
+d$K <- scale(d$kcal.per.g)
+d$F <- scale(d$perc.fat)
+d$L <- scale(d$perc.lactose)
+
+```
+
+### Building individual regression models
+
+```{r}
+
+mF <- quap(
+  alist(
+    K ~ dnorm(mu, sigma),
+    mu <- a + bF*F,
+    bF ~ dnorm(0,0.5),
+    a ~ dnorm(0,0.5),
+    sigma ~ dexp(1)
+  ), data = d
+)
+
+precis(mF)
+
+mL <- quap(
+  alist(
+    K ~ dnorm(mu, sigma),
+    mu <- a + bL*L,
+    a ~ dnorm(0,1),
+    bL ~ dnorm(0,0.5),
+    sigma ~ dexp(1)
+  ), data = d
+)
+
+precis(mL)
+
+mLF <- quap(
+  alist(
+    K ~ dnorm(mu, sigma),
+    mu <- a + bF*F + bL*L,
+    a ~ dnorm(0,1),
+    bL ~ dnorm(0,0.5),
+    bF ~ dnorm(0,0.5),
+    sigma ~ dexp(1)
+  ), data = d
+)
+
+precis(mLF)
+
+pairs(~K+L+F, d)
+
+```
+
+The posterior means of the coefficients are closer to zero than the individual bi-variate plots.  This tells us that once we know one of the variables, there is little that the other variable can add in the form of information.  hence their coefficients are closer to zero.
+
+### A closer look at the precis outputs
+
+```{r}
+
+F_seq <- seq(-5,5, length.out = 2)
+mu_F <- link(mF, data=data.frame(F=F_seq))
+mu_F_mean <- apply(mu_F, 2, mean)
+mu_F_PI <- apply(mu_F, 2, PI)
+
+K_sim_F <- sim(mF, data=data.frame(F=F_seq))
+K_sim_F_PI <- apply(K_sim_F, 2, PI)
+
+
+
+L_seq <- seq(-5,5, length.out = 2)
+mu_L <- link(mL, data=data.frame(L=L_seq))
+mu_L_mean <- apply(mu_L, 2, mean)
+mu_L_PI <- apply(mu_L, 2, PI)
+
+K_sim_L <- sim(mL, data=data.frame(L=L_seq))
+K_sim_L_PI <- apply(K_sim_L, 2, PI)
+
+par(mfrow=c(1,2))
+
+plot(K ~ F, data=d, col=rangi2)
+lines(F_seq, mu_F_mean)
+shade(mu_F_PI, F_seq)
+shade(K_sim_F_PI, F_seq)
+
+plot(K ~ L, data=d, col=rangi2)
+lines(L_seq, mu_L_mean)
+shade(mu_L_PI, L_seq)
+shade(K_sim_L_PI, L_seq)
+
+```
+
+
