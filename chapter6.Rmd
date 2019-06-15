@@ -6,6 +6,7 @@ This indictes that there is a very strong relationship between 2 or more variabl
 ```{r}
 
 library(rethinking)
+library(dagitty)
 
 N <- 100 # NUmber of individuals
 set.seed(909)
@@ -168,4 +169,104 @@ shade(K_sim_L_PI, L_seq)
 
 ```
 
+# Post Treatment Bias
 
+The idea here is explore the issues with adding variables, which could be a post treatment effect.
+
+```{r}
+# number of plants
+
+N <- 100
+
+# simulating the initial heights
+h0 <- rnorm(N, 10, 2)
+
+# Assign treatments and simulate fungus growth
+treatment <- rep(0:1, each=N/2)
+fungus <- rbinom(N, size = 1, prob = 0.5 - treatment*0.4)
+
+h1 <- h0 + rnorm(N, 5 - 3*fungus)
+
+# compose clean dataframe
+d <- data.frame(h0=h0, h1=h1, treatment=treatment, fungus=fungus)
+d
+```
+
+
+## Prior design considerations
+
+Thinking through the logic
+1. Plants will grow in proportion to their initial height
+2. Some plants could die due to the treatment, or their height could reduce
+3. In any case the height needs to be positive (>=0)
+
+We could consider using a log normal distribution, which is always positive.
+
+```{r}
+sim_p <- rlnorm(1e4, mean = 0., sd = 0.25)
+
+# Building a simple multiplicative model where new height = old height * prop. which tells us how tall it will grow to
+mBasic <- quap(
+  alist(
+    h1 <- dnorm(mu, sigma),
+    mu <- h0*p,
+    p ~ dlnorm(0, 0.25),
+    sigma ~ dexp(1)
+  ), data = d
+)
+
+precis(mBasic)
+```
+
+```{r}
+# Now we would like to include treatment and fungal effects.
+mBiV <- quap(
+  alist(
+    h1 ~ dnorm(mu, sigma),
+    mu <- h0*p,
+    p <- a + bT*treatment + bF*fungus,
+    a ~ dlnorm(0, 0.25),
+    bT ~ dnorm(0, 0.5),
+    bF ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ), data = d
+)
+
+precis(mBiV)
+
+```
+
+The output above suggests that there is not much impact of the treatment, but a negative impact on the plant growth depending on the presence of fungus.  The question we are asking the model is that given that I know the fungus presence, which is an outcome of the treatment, what is the impact of knowing the treatment status.  Now let us build a model purely by ignoring the fungus variable.
+
+```{r}
+
+mT <- quap(
+  alist(
+    h1 ~ dnorm(mu, sigma),
+    mu <- h0*p,
+    p <- a + bT*treatment,
+    a ~ dlnorm(0, 0.25),
+    bT ~ dnorm(0,0.5),
+    sigma ~ dexp(1)
+  ), data = d
+)
+
+precis(mT)
+```
+
+## Plotting the graph using daggity
+
+```{r}
+
+plant_dag <- dagitty( "dag {
+  H0 -> H1
+  F -> H1
+  T -> F
+}")
+
+coordinates( plant_dag ) <- list( x=c(H0=0,T=2,F=1.5,H1=1) , y=c(H0=0,T=0,F=1,H1=2) )
+plot( plant_dag )
+
+```
+
+The message here is that including the post treatment variable can mask the treatment itself. In other words, learning about the treatment tells us nothing about the plant height when we already know the fungus growth.  
