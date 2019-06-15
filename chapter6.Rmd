@@ -270,3 +270,61 @@ plot( plant_dag )
 ```
 
 The message here is that including the post treatment variable can mask the treatment itself. In other words, learning about the treatment tells us nothing about the plant height when we already know the fungus growth.  
+
+# Collider Bias
+
+The key message is that when you condition on a collider, it creates a statistical, but not necessarily causal, association among its causes. In other words, using a collider as a predictor variable generates a misleading association inside the statistical model leading us to make rroneous causal inference.
+
+The variables under question are age, marriage and happiness.  The Question that we want to ask is, whether age is related to happiness?
+
+## Simuating the data
+```{r}
+
+d <- sim_happiness(seed = 1977, N_years = 1e3)
+str(d)
+
+```
+
+
+```{r}
+
+d2 <- d[d$age>17,]
+d2$A <- (d2$age - 18)/(65-18)
+d2$mid <- d2$married + 1
+
+mH <- quap(
+  alist(
+    happiness ~ dnorm(mu, sigma),
+    mu <- a[mid] + bA*A,
+    a[mid] ~ dnorm(0,1),
+    bA ~ dnorm(0,2),
+    sigma ~ dexp(1)
+  ), data = d2
+)
+
+precis(mH, depth = 2)
+
+```
+
+This model clearly tells us that age is negatively correlated with happiness.
+
+### Building a separate model between age and happiness
+```{r}
+
+mH_onlyA <- quap(
+  alist(
+    happiness <- dnorm(mu, sigma),
+    mu <- a + bA*A,
+    a ~ dnorm(0,1),
+    bA ~ dnorm(0,2),
+    sigma ~ dexp(1)
+  ), data = d2
+)
+
+precis(mH_onlyA)
+
+```
+
+This tells us that there is no relationship between happiness and age.  Comparing the 2 previous models, it looks like, marriage has induced a spurious negative statistical association between age and happiness, and not a causal association.
+
+Question: Considering marriage for regression, is it equivalent to conditioning on that variable?  Given that marriage is a collider, we believe 
