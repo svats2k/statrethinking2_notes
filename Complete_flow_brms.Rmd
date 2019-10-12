@@ -1,0 +1,163 @@
+Reading the libraries
+```{r}
+require(rethinking)
+require(tidyr)
+require(dplyr)
+require(ggplot2)
+require(brms)
+require(bayesplot)
+
+```
+
+Reading in the data
+
+```{r}
+
+data(Howell1)
+d <- Howell1
+rm(Howell1)
+
+d <- d %>% mutate(gen_categ=as.factor(male + 1))
+d2 <- d[d$age > 18,]
+d2$weight_cc <- scale(d2$weight)
+
+head(d2)
+```
+
+Simple model and no predictors
+
+
+```{r}
+
+m1 <- brm(data = d2, family = gaussian,
+          height ~ 1,
+          prior = c(prior(normal(0,20), class=Intercept),
+                    prior(cauchy(0,2), class=sigma)),
+          iter = 2000, warmup = 500, chains = 4, cores = 4)
+
+m1_prior <- brm(data = d2, family = gaussian,
+          height ~ 1,
+          prior = c(prior(normal(0,20), class=Intercept),
+                    prior(cauchy(0,2), class=sigma)),
+          iter = 2000, warmup = 500, chains = 4, cores = 4)
+
+
+```
+
+
+```{r}
+# Model with a numeric covariate
+m2 <- brm(data = d2, family = gaussian,
+          height ~ 1 + weight_cc,
+          prior = c(prior(normal(0, 20), class=Intercept),
+                    prior(normal(0, 1), class=b),
+                    prior(cauchy(0,2), class=sigma)),
+          iter = 2000, warmup = 500, chains = 4, cores = 4
+)
+```
+
+Understanding covariate modeling
+```{r}
+
+d2$female <- 1 - d2$male
+d2$female <- as.factor(d2$female)
+d2$male <- as.factor(d2$male)
+
+head(d2)
+
+# Model with a categorical covariate
+m3 <- brm(data = d2, family = gaussian,
+          height ~ 0 + male,
+          prior = c(prior(normal(0,20), class=b),
+                    prior(cauchy(0,2), class=sigma)),
+          iter = 2000, warmup = 500, chains = 4, cores = 4)
+
+
+# Model with a categorical covariate
+get_prior(data = d2, family = gaussian, height ~ 1 + male)
+
+m4 <- brm(data = d2, family = gaussian,
+          height ~ 1 + male,
+          prior = c(prior(normal(0,20), class=Intercept),
+                    prior(normal(0,20), class=b, coef=male1),
+                    prior(cauchy(0,2), class=sigma)),
+          iter = 2000, warmup = 500, chains = 4, cores = 4)
+
+# Model with a categorical covariate
+get_prior(data = d2, family = gaussian, height ~ 1 + male + female)
+
+m5 <- brm(data = d2, family = gaussian,
+          height ~ 1 + male + female,
+          prior = c(prior(normal(0,20), class=Intercept),
+                    prior(normal(0,20), class=b, coef=male1),
+                    prior(normal(0,20), class=b, coef=female1),
+                    prior(cauchy(0,2), class=sigma)),
+          iter = 2000, warmup = 500, chains = 4, cores = 4)
+
+```
+
+
+
+
+Model Diagnostics
+```{r}
+m3 <- brm(data = d2, family = gaussian,
+          height ~ 0 + male,
+          prior = c(prior(normal(0,20), class=b),
+                    prior(cauchy(0,2), class=sigma)),
+          iter = 2000, warmup = 500, chains = 4, cores = 4)
+
+m3_prior <- brm(data = d2, family = gaussian,
+          height ~ 0 + male,
+          prior = c(prior(normal(0,20), class=b),
+                    prior(cauchy(0,2), class=sigma)),
+          sample_prior = "only")
+
+```
+
+```{r}
+posterior_samples(m3_prior)
+posterior_samples(m3)
+```
+
+
+Extracting samples from the posterior
+```{r}
+
+plot(m3)
+plot(m3_prior)
+
+```
+
+```{r}
+
+prior_samples(m2)
+
+```
+
+Visualizing the chains
+```{r}
+
+
+mcmc_dens(m1)
+
+```
+
+Prior Predictive simulations
+
+```{r}
+
+
+```
+
+Posterior predictive simulations
+
+```{r}
+
+
+```
+
+
+
+
+
