@@ -4,6 +4,7 @@ library(ggplot2)
 library(tidyverse)
 library(tidybayes)
 library(purrr)
+library(bayesplot)
 ```
 
 Begining Information Theory
@@ -39,8 +40,8 @@ message(paste('The distance between p and q2:', -sum(p*log(p/q2))))
 t <- tibble(
   p_1 = 0.3,
   p_2 = 0.7,
-  q_1 = seq(from=0.01, to = 0.99, by = 0.01)
-) %>% mutate(q_2 = 1 - q_1) %>%
+  q_1 = seq(from=0.01, to = 0.99, by = 0.01)) %>% 
+  mutate(q_2 = 1 - q_1) %>%
   mutate(d_kl = (p_1*log(p_1/q_1)+p_2*log(p_2/q_2)))
 
 t %>%
@@ -55,7 +56,7 @@ t %>%
 
 In essence divergence helps us contrast differnt approximations of p.
 
-In reality, since we do not know the actual proability distribution.  This approach gives us a way to know, between 2 distributions, which is closer to the target than the other.  This is simply measured by using the aerage log probability of the distribution under question. 
+In reality, since we do not know the actual proability distribution.  This approach gives us a way to know, between 2 distributions, which is closer to the target than the other.  This is simply measured by using the average log probability of the distribution under question. 
 
 ```{r}
 
@@ -64,8 +65,33 @@ brainvolcc <- c( 438 , 452 , 612, 521, 752, 871, 1350 )
 masskg <- c( 37.0 , 35.5 , 34.5 , 41.5 , 55.5 , 61.0 , 53.5 )
 d <- data.frame( species=sppnames , brain=brainvolcc , mass=masskg )
 
+d$mass_cc <- (d$mass - mean(d$mass))/sd(d$mass)
+
+
 lm(data = d, brainvolcc ~ masskg) %>% logLik()*2
 
 ```
 
 
+```{r}
+
+priors <- c(brms::prior(normal(0, 1000), class=Intercept),
+            brms::prior(normal(0,1000), class=b),
+            brms::prior(cauchy(0,10), class=sigma))
+
+b6.8 <- brm(data = d, family = gaussian,
+           brain ~ 1 + mass_cc,
+           prior = priors,
+           iter = 2000, warmup = 500, cores = 4, chains = 4,
+           sample_prior = "yes")
+
+```
+
+model diagnostics
+
+```{r}
+
+plot(b6.8)
+
+
+```

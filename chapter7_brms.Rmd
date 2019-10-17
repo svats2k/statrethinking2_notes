@@ -1,0 +1,16 @@
+```{r load_packages}
+require(rethinking)
+require(dplyr)
+require(ggplot2)
+require(tidyr)
+require(brms)
+
+```
+
+Creating the dataset
+
+```{r}
+
+
+
+```

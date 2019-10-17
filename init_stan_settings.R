@@ -11,3 +11,7 @@ cat("\nCXX14FLAGS=-O3 -march=native -mtune=native",
 library("rstan")
 options(mc.cores = parallel::detectCores())
 rstan_options(auto_write = TRUE)
+
+require(lobstr)
+options(warnPartialMatchDollar = TRUE)
+Sys.setenv("_R_CHECK_LENGTH_1_CONDITION_" = "true")
